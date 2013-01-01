@@ -873,10 +873,12 @@ namespace System.Xml.Schema
 				errorCount += XmlSchemaUtil.ValidateAttributesResolved (
 					this.attributeUses, h, schema, scr.Attributes, 
 					scr.AnyAttribute, ref attributeWildcard, null, false);
-				foreach (DictionaryEntry entry in baseComplexType.AttributeUses) {
-					XmlSchemaAttribute attr = (XmlSchemaAttribute) entry.Value;
-					if (attributeUses [attr.QualifiedName] == null)
-						XmlSchemaUtil.AddToTable (attributeUses, attr, attr.QualifiedName, h);
+				if (baseComplexType != null) {
+					foreach (DictionaryEntry entry in baseComplexType.AttributeUses) {
+						XmlSchemaAttribute attr = (XmlSchemaAttribute) entry.Value;
+						if (attributeUses [attr.QualifiedName] == null)
+							XmlSchemaUtil.AddToTable (attributeUses, attr, attr.QualifiedName, h);
+					}
 				}
 			}
 
