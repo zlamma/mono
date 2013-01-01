@@ -1,4 +1,4 @@
-MonkeyDoc/HelpSourceTests.cs
-MonkeyDoc.Ecma/EcmaUrlTests.cs
-MonkeyDoc/SettingsTest.cs
-MonkeyDoc.Generators/RawGeneratorTests.cs
+Monodoc/HelpSourceTests.cs
+Monodoc.Ecma/EcmaUrlTests.cs
+Monodoc/SettingsTest.cs
+Monodoc.Generators/RawGeneratorTests.cs
