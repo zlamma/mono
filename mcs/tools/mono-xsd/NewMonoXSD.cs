@@ -21,11 +21,25 @@ using System.CodeDom;
 using System.CodeDom.Compiler;
 using Microsoft.CSharp;
 using Microsoft.VisualBasic;
+using System.Linq;
 
 namespace Mono.Util {
 
 	public class Driver
 	{
+
+		private static bool IsWindows = new [] { PlatformID.Win32NT, PlatformID.Win32S, PlatformID.Win32Windows, PlatformID.WinCE }.Contains(Environment.OSVersion.Platform);
+
+		/// <remarks>Taken from .NET 4.0 System.IO.Path.MaxPath. This is the length of the native zero terminated char array, so the actual content must be max 259</remarks>
+		private const int MaxTotalPathLengthInWindows = 259;
+		/// <remarks>Taken from .NET 4.0 System.IO.Path.MaxDirectoryLength. This is the length of the native zero terminated char array, so the actual content must be max 259</remarks>
+		public const int MaxPathComponentLengthInWindows = 254;
+
+		private static int? MaxTotalPathLength = IsWindows ? (int?) MaxTotalPathLengthInWindows : null;
+		private static int MaxFileNameLength = 
+			// Various Unix filesystems also have a maximum file name length limitations around 255 (http://en.wikipedia.org/wiki/Comparison_of_file_systems), so use it as a reasonable global limit
+			MaxPathComponentLengthInWindows;
+
 		public static readonly string helpString =
 			"xsd.exe - a utility for generating schema or class files\n\n" +
 			"xsd.exe <schema>.xsd /classes [/element:NAME] [/language:NAME]\n" +
@@ -112,6 +126,26 @@ namespace Mono.Util {
 			bool assemblyOptions = false;
 			bool generateDataset = false;
 			bool inference = false;
+
+			// Support for passing arguments in an XML file http://msdn.microsoft.com/en-us/library/x6c1kb0s%28v=vs.110%29.aspx 
+			// The command length limitation on Windows makes this necessary for cases with many input files
+			var argumentsFile = args.SingleOrDefault(arg=>arg.StartsWith("/p:"));
+			if (argumentsFile != null)
+			{
+				argumentsFile = argumentsFile.Substring(startIndex: 3);
+				var document = new XmlDocument();
+				document.Load(filename: argumentsFile);
+				// Translate "generateClasses" element to "/classes" arg
+				if (document.DocumentElement.ChildNodes.Cast<XmlNode>().Single().LocalName == "generateClasses")
+				{
+					var generateClassesElement = document.DocumentElement.ChildNodes.Cast<XmlNode>().Single();
+					var languageAttrValue = generateClassesElement.Attributes.Cast<XmlAttribute>().Where(_ => _.LocalName == "language").Single().InnerText;
+					var codeNamespaceAttrValue = generateClassesElement.Attributes.Cast<XmlAttribute>().Where(_ => _.LocalName == "namespace").Single().InnerText;
+					var schemas = generateClassesElement.ChildNodes.Cast<XmlNode>().Where(_ => _.NodeType == XmlNodeType.Element).Select(_ => _.InnerText);
+					args =  schemas.Concat(new[] {"/classes", "/namespace:" + codeNamespaceAttrValue, "/language:" + languageAttrValue }).ToArray();
+				}
+			}
+
 
 			foreach (string arg in args)
 			{
@@ -226,8 +260,8 @@ namespace Mono.Util {
 
 			if (assemblies.Count > 1)
 				Error (tooManyAssem);
-
-			if (outputDir == null) outputDir = ".";
+			// Use the absolute directory path so that we can measure path length
+			if (outputDir == null) outputDir = Environment.CurrentDirectory;
 
 			string typename = null;
 			Type generatorType = null;
@@ -384,8 +418,6 @@ namespace Mono.Util {
 				else targetFile += "_" + Path.GetFileNameWithoutExtension (fileName);
 			}
 
-			targetFile += "." + provider.FileExtension;
-
 			CodeCompileUnit cunit = new CodeCompileUnit ();
 			CodeNamespace codeNamespace = new CodeNamespace (namesp);
 			cunit.Namespaces.Add (codeNamespace);
@@ -431,7 +463,14 @@ namespace Mono.Util {
 			
 			ICodeGenerator gen = provider.CreateGenerator();
 
+			string extensionSuffix = "." + provider.FileExtension;
+			var targetFileNameLength = Path.GetFileName(targetFile).Length;
+			if (targetFileNameLength + extensionSuffix.Length > MaxFileNameLength)
+				targetFile = targetFile.Substring(0, targetFile.Length - ((targetFileNameLength + extensionSuffix.Length) - MaxFileNameLength));
 			string genFile = Path.Combine (outputDir, targetFile);
+			if (MaxTotalPathLength != null && MaxTotalPathLength <  genFile.Length + extensionSuffix.Length)
+				genFile = genFile.Substring(0, (int)MaxTotalPathLength - extensionSuffix.Length);
+			genFile += extensionSuffix;
 			StreamWriter sw = new StreamWriter(genFile, false);
 			gen.GenerateCodeFromCompileUnit (cunit, sw, new CodeGeneratorOptions());
 			sw.Close();
