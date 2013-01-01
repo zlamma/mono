@@ -1162,7 +1162,10 @@ namespace System.Xml.Serialization
 					multiValue = ImportChoices (typeQName, member, choices, ((XmlSchemaChoice)item).Items) || multiValue;
 				}
 				else if (item is XmlSchemaSequence) {
-					multiValue = ImportChoices (typeQName, member, choices, ((XmlSchemaSequence)item).Items) || multiValue;
+					ImportChoices (typeQName, member, choices, ((XmlSchemaSequence)item).Items);
+					// A sequence means there can be more than one element under this choice (okay unless it's a single
+					// 1-occurs element sequence, but this is a corner case). Also Microsoft's implementation acts this way.
+					multiValue = true;
 				}
 			}
 			return multiValue;
