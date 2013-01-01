@@ -411,7 +411,10 @@ namespace Mono.Util {
 			foreach (string fileName in schemaNames)
 			{
 				StreamReader sr = new StreamReader (fileName);
-				schemas.Add (XmlSchema.Read (sr, new ValidationEventHandler (HandleValidationError)));
+				var schema = XmlSchema.Read (sr, new ValidationEventHandler (HandleValidationError));
+				// Set SourceUri so that imports are correctly resolved relative to the .xsd file location and not the current working directory
+				schema.SourceUri = Path.GetFullPath(fileName);
+				schemas.Add (schema);
 				sr.Close ();
 
 				if (targetFile == "") targetFile = Path.GetFileNameWithoutExtension (fileName);
